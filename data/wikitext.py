@@ -1,4 +1,4 @@
-from .text_dataset import TextDataset
+from .dataset_types import TextDataset
 
 from typing import Optional
 

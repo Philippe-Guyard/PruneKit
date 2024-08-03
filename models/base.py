@@ -95,3 +95,7 @@ class ModelBase:
     def set_decoder_layers(self, x: nn.ModuleList):
         self._model_setattr_rec(self.decoder_layers_path, x)
         self.model.config.num_hidden_layers = len(x)
+
+    @property
+    def n_layers(self):
+        return len(self.get_decoder_layers())

@@ -1,2 +1,2 @@
-from .text_dataset import *
+from .dataset_types import *
 from .wikitext import *

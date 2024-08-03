@@ -3,7 +3,7 @@ from typing import Dict
 from models import ModelBase
 from data import TextDataset
 
-from .static_utils import get_linear_children
+from .utils import get_linear_children
 
 import torch
 import torch.nn as nn

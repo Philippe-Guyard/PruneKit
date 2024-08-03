@@ -5,6 +5,7 @@ from typing import Literal
 from data.wikitext import get_wikitext
 
 from libprune import prune_wanda, check_sparsity
+from libprune import layer_cut
 from models import load_from_path 
 
 def execute_wanda_prune(model, prune_kwargs):
@@ -48,6 +49,22 @@ if prune_config['prune_method'] == 'wanda':
     model.for_inference()
     model = execute_wanda_prune(model, prune_kwargs)
     check_sparsity(model, log_modules=False)
+elif prune_config['prune_method'] == 'layer_cut':
+    model.for_inference()
+    dataset_name = prune_kwargs.get('dataset_name', 'wikitext')
+    train_size = prune_kwargs.get('train_size', 250)
+    data = None 
+    if dataset_name == 'wikitext':
+        data = get_wikitext(train_size, 0, True)
+    else:
+        assert False
+
+    cut_strategy = prune_kwargs.get('cut_strategy', 'simple')
+    skip_layers = prune_kwargs['skip_layers']
+    if cut_strategy == 'simple':
+        model = layer_cut.simple_prune(model, data, skip_layers)
+    elif cut_strategy == 'iter':
+        model = layer_cut.iter_prune(model, data, skip_layers)
 else:
     assert False
 

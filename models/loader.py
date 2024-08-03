@@ -15,7 +15,7 @@ MODEL_TYPE_TO_CLS = {
 
 def infer_model_type(base_name: str) -> ModelType:
     for x in ModelType:
-        if x.value in base_name:
+        if x.value in base_name.lower():
             return x
 
     assert False, 'Could not infer model type' 

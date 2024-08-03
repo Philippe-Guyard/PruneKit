@@ -1,2 +1,2 @@
 from .wanda import *
-from .static_utils import *
+from .utils import *
