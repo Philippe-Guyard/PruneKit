@@ -1,5 +1,5 @@
-from argparse import ArgumentParser
 import json
+from pathlib import Path
 from typing import Literal
 
 from data.wikitext import get_wikitext
@@ -7,6 +7,8 @@ from data.wikitext import get_wikitext
 from libprune import prune_wanda, check_sparsity
 from libprune import layer_cut
 from models import load_from_path 
+
+from transformers import HfArgumentParser
 
 def execute_wanda_prune(model, prune_kwargs):
     prune_kwargs = prune_config['prune_kwargs']
@@ -32,25 +34,7 @@ def execute_wanda_prune(model, prune_kwargs):
     prune_wanda(model, data, use_variant, sparsity_ratio, prune_n=prune_n, prune_m=prune_m)
     return model
 
-parser = ArgumentParser()
-parser.add_argument('--config')
-
-args = parser.parse_args()
-config_path = args.config
-
-prune_config = None
-with open(config_path, 'r') as config_file:
-    prune_config = json.load(config_file)
-
-model = load_from_path(prune_config['model_path'])
-prune_kwargs = prune_config.get('prune_kwargs', dict())
-if prune_config['prune_method'] == 'wanda':
-    # TODO: Remove this for inference, proper device management 
-    model.for_inference()
-    model = execute_wanda_prune(model, prune_kwargs)
-    check_sparsity(model, log_modules=False)
-elif prune_config['prune_method'] == 'layer_cut':
-    model.for_inference()
+def execute_layercut(model, prune_kwargs):
     dataset_name = prune_kwargs.get('dataset_name', 'wikitext')
     train_size = prune_kwargs.get('train_size', 250)
     metric_name = prune_kwargs.get('dist_metric', 'angles')
@@ -74,8 +58,30 @@ elif prune_config['prune_method'] == 'layer_cut':
         model = layer_cut.simple_prune(model, data, skip_layers, dist_metric=metric)
     elif cut_strategy == 'iter':
         model = layer_cut.iter_prune(model, data, skip_layers, dist_metric=metric)
+
+    return model
+
+class PruneConfig:
+    prune_method: str 
+    model_path: str 
+    model_out: str
+    prune_kwargs_path: str 
+
+config = HfArgumentParser(PruneConfig).parse_args_into_dataclasses()[0]
+
+model = load_from_path(config.model_path)
+prune_kwargs_path = Path(config.prune_kwargs_path) 
+prune_kwargs = json.loads(prune_kwargs_path.read_text())
+if config.prune_method == 'wanda':
+    # TODO: Remove this for inference, proper device management 
+    model.for_inference()
+    model = execute_wanda_prune(model, prune_kwargs)
+    check_sparsity(model, log_modules=False)
+elif config.prune_method == 'layer_cut':
+    model.for_inference()
+    model = execute_layercut(model, prune_kwargs)
 else:
     assert False
 
-model.model.save_pretrained(prune_config['model_out'])
-model.tokenizer.save_pretrained(prune_config['model_out'])
+model.model.save_pretrained(config.model_out)
+model.tokenizer.save_pretrained(config.model_out)
