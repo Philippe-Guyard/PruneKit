@@ -4,6 +4,7 @@ import torch
 from models import ModelBase
 
 import torch.nn as nn
+import torch.nn.functional as F
 
 def get_linear_children(module: nn.Module) -> Dict[str, nn.Linear]:
     """
@@ -100,5 +101,28 @@ def with_module_io_hooks(model: ModelBase, collect_modules=None):
             if idx == model.n_layers - 1:
                 last_hook = save_data(f'layer{idx+1}', cache, save_output=True, is_last_module=True)
                 layer.register_forward_hook(last_hook, with_kwargs=True)
-    
+
     return model, cache
+
+def distillation_loss(student_logits, teacher_logits, per_batch=False, temperature=1.0):
+    """
+    Compute the distillation loss between student and teacher logits.
+
+    Parameters:
+    - student_logits: Logits from the student model (tensor of shape [seq_len, vocab_size])
+    - teacher_logits: Logits from the teacher model (tensor of shape [seq_len, vocab_size])
+    - temperature: Temperature for softening the probability distributions
+    - per_batch: If True, return a loss value for every token 
+    """
+    # Soften the probabilities with temperature
+    student_probs = F.log_softmax(student_logits / temperature, dim=1)
+    teacher_probs = F.softmax(teacher_logits / temperature, dim=1)
+    
+    # Compute the KL divergence loss
+    reduction = 'none' if per_batch else 'batchmean'
+    kldiv_loss = F.kl_div(student_probs, teacher_probs, reduction=reduction)
+    if per_batch:
+        kldiv_loss = kldiv_loss.sum(dim=1)
+    
+    kldiv_loss *= (temperature ** 2)
+    return kldiv_loss

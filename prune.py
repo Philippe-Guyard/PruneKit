@@ -53,6 +53,15 @@ elif prune_config['prune_method'] == 'layer_cut':
     model.for_inference()
     dataset_name = prune_kwargs.get('dataset_name', 'wikitext')
     train_size = prune_kwargs.get('train_size', 250)
+    metric_name = prune_kwargs.get('dist_metric', 'angles')
+    metric = None 
+    if metric_name == 'angles':
+        metric = layer_cut.compute_angular_distance 
+    elif metric_name == 'distil':
+        metric = layer_cut.compute_distil_loss
+    else:
+        assert False 
+
     data = None 
     if dataset_name == 'wikitext':
         data = get_wikitext(train_size, 0, True)
@@ -62,9 +71,9 @@ elif prune_config['prune_method'] == 'layer_cut':
     cut_strategy = prune_kwargs.get('cut_strategy', 'simple')
     skip_layers = prune_kwargs['skip_layers']
     if cut_strategy == 'simple':
-        model = layer_cut.simple_prune(model, data, skip_layers)
+        model = layer_cut.simple_prune(model, data, skip_layers, dist_metric=metric)
     elif cut_strategy == 'iter':
-        model = layer_cut.iter_prune(model, data, skip_layers)
+        model = layer_cut.iter_prune(model, data, skip_layers, dist_metric=metric)
 else:
     assert False
 
