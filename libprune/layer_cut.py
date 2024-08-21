@@ -47,15 +47,18 @@ def compute_angular_distance(model: ModelBase, data: TextDataset, skip_layers: i
             use_cache=True,
         )
 
-        # (n_layers, bsz, seq_len, hidden_size)
+        # (n_layers + 1, bsz, seq_len, hidden_size)
         layer_embeddings = torch.stack([
             get_layer_embeddings(layer_idx)
-            for layer_idx in range(model.n_layers)
+            # +1 since we have input(0) and output(model.n_layers)
+            for layer_idx in range(model.n_layers + 1)
         ])
-        # (n_layers, bsz, seq_len)
+        # (n_layers - skip_layers + 1, bsz, seq_len)
         cos_sim = F.cosine_similarity(layer_embeddings[:-skip_layers], layer_embeddings[skip_layers:], dim=-1) 
         angular_dist = torch.acos(cos_sim) / torch.pi
-        distances.append(angular_dist.view(model.n_layers - skip_layers, -1).cpu())
+        # (n_layers - skip_layers + 1, bsz * seq_len)
+        new_shape = (model.n_layers - skip_layers + 1, -1)
+        distances.append(angular_dist.reshape(new_shape).cpu())
         # torch.cuda.synchronize()
         # torch.cuda.empty_cache()
 

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import json
 from pathlib import Path
 from typing import Literal
@@ -6,7 +7,7 @@ from data.wikitext import get_wikitext
 
 from libprune import prune_wanda, check_sparsity
 from libprune import layer_cut
-from models import load_from_path 
+from models import load_from_path, ModelBase
 
 from transformers import HfArgumentParser
 
@@ -34,7 +35,7 @@ def execute_wanda_prune(model, prune_kwargs):
     prune_wanda(model, data, use_variant, sparsity_ratio, prune_n=prune_n, prune_m=prune_m)
     return model
 
-def execute_layercut(model, prune_kwargs):
+def execute_layercut(model: ModelBase, prune_kwargs):
     dataset_name = prune_kwargs.get('dataset_name', 'wikitext')
     train_size = prune_kwargs.get('train_size', 250)
     metric_name = prune_kwargs.get('dist_metric', 'angles')
@@ -53,7 +54,11 @@ def execute_layercut(model, prune_kwargs):
         assert False
 
     cut_strategy = prune_kwargs.get('cut_strategy', 'simple')
-    skip_layers = prune_kwargs['skip_layers']
+    skip_layers = prune_kwargs.get('skip_layers', None)
+    if skip_layers is None:
+        sparsity_ratio = prune_kwargs['sparsity_ratio']
+        skip_layers = int(model.n_layers * sparsity_ratio)
+
     if cut_strategy == 'simple':
         model = layer_cut.simple_prune(model, data, skip_layers, dist_metric=metric)
     elif cut_strategy == 'iter':
@@ -61,6 +66,7 @@ def execute_layercut(model, prune_kwargs):
 
     return model
 
+@dataclass
 class PruneConfig:
     prune_method: str 
     model_path: str 
