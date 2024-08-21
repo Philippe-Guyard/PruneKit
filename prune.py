@@ -12,7 +12,6 @@ from models import load_from_path, ModelBase
 from transformers import HfArgumentParser
 
 def execute_wanda_prune(model, prune_kwargs):
-    prune_kwargs = prune_config['prune_kwargs']
     dataset = prune_kwargs.get('dataset', 'wikitext')
     data = None
     if dataset == 'wikitext':
