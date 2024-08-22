@@ -43,6 +43,7 @@ def evaluate_checkpoint(model_path: str, task: str, batch_size=1):
     num_fewshot = 0
     if '@' in task:
         task_name, num_fewshot = task.split('@')
+        num_fewshot = int(num_fewshot)
 
     results = evaluator.simple_evaluate(
         model=model.as_lmeval_obj(batch_size=batch_size),
