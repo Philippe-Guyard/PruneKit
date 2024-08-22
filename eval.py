@@ -37,12 +37,17 @@ def get_metric_values(results, task):
 def format_number(mean, stderr):
     return f"{mean:.2f}±{stderr:.2f}"
 
-def evaluate_checkpoint(model_path: str, tasks: List[str], batch_size=1): 
+def evaluate_checkpoint(model_path: str, task: str, batch_size=1): 
     model = load_from_path(model_path)
+    task_name = task
+    num_fewshot = 0
+    if '@' in task:
+        task_name, num_fewshot = task.split('@')
+
     results = evaluator.simple_evaluate(
         model=model.as_lmeval_obj(batch_size=batch_size),
-        tasks=tasks,
-        # num_fewshot=0,
+        tasks=[task_name],
+        num_fewshot=num_fewshot,
         batch_size=batch_size,
         device="cuda",
     )
@@ -53,8 +58,8 @@ def eval_and_format(model_path: str, tasks: List[str], batch_size=1):
     all_results.update({f'{task}_mean': [] for task in tasks})
     all_results.update({f'{task}_stderr': [] for task in tasks})
     all_results['model_path'] = [model_path]
-    results = evaluate_checkpoint(model_path, tasks)
     for task in tasks:
+        results = evaluate_checkpoint(model_path, task)
         mean, stderr = get_metric_values(results, task)
         all_results[f'{task}_mean'].append(mean)
         all_results[f'{task}_stderr'].append(stderr)
@@ -171,6 +176,8 @@ def benchmark_and_format(model_path: str, use_cache=True, n_examples=500, n_burn
     all_results['input_speed_stderr'] = istd 
     all_results['output_speed_mean'] = omean
     all_results['ouput_speed_stderr'] = ostd
+    all_results['input_speed'] = format_number(imean, istd)
+    all_results['output_speed'] = format_number(omean, ostd)
 
     return pd.DataFrame(all_results)
 
