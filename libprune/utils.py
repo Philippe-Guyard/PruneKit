@@ -104,9 +104,9 @@ def with_module_io_hooks(model: ModelBase, collect_modules=None):
 
     return model, cache
 
-def distillation_loss(student_logits, teacher_logits, per_batch=False, temperature=1.0):
+def kldiv_loss(student_logits, teacher_logits, per_batch=False, temperature=1.0):
     """
-    Compute the distillation loss between student and teacher logits.
+    Compute the KL-divergence between student and teacher logits.
 
     Parameters:
     - student_logits: Logits from the student model (tensor of shape [seq_len, vocab_size])
@@ -126,3 +126,30 @@ def distillation_loss(student_logits, teacher_logits, per_batch=False, temperatu
     
     kldiv_loss *= (temperature ** 2)
     return kldiv_loss
+
+def distillation_loss(student_logits, teacher_logits, labels, per_batch=False, temperature=1.0, alpha=0.5):
+    """
+    Compute the distillation loss between student and teacher,
+    which is defined as alpha * KL divergence + (1 - alpha) * Cross Entropy loss with true labels
+
+    Parameters:
+    - student_logits: Logits from the student model (tensor of shape [batch_size, vocab_size])
+    - teacher_logits: Logits from the teacher model (tensor of shape [batch_size, vocab_size])
+    - labels: Ground truth labels (tensor of shape [batch_size])
+    - temperature: Temperature for softening the probability distributions
+    - alpha: Weighting factor for balancing the KL divergence and cross-entropy loss
+
+    Returns:
+    - Loss value (scalar tensor)
+    """
+    kldiv = kldiv_loss(student_logits, teacher_logits, per_batch=per_batch, temperature=temperature)
+    
+    # Compute the cross-entropy loss with true labels
+    cross_entropy_loss = F.cross_entropy(student_logits, labels, reduction='none' if per_batch else 'mean')
+    if per_batch:
+        cross_entropy_loss = cross_entropy_loss.mean(dim=0)
+    
+    # Combine the two losses
+    combined_loss = alpha * kldiv + (1 - alpha) * cross_entropy_loss
+    
+    return combined_loss

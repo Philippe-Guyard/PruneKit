@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from data import TextDataset, TokenizedDataset
-from .utils import distillation_loss, with_module_io_hooks
+from .utils import distillation_loss, kldiv_loss, with_module_io_hooks
 from models import load_from_path, ModelBase
 
 from tqdm import tqdm
@@ -65,13 +65,13 @@ def compute_angular_distance(model: ModelBase, data: TextDataset, skip_layers: i
     distances = torch.cat(distances, dim=1)
     return distances.mean(dim=1)
         
-@torch.no_grad()
-def compute_distil_loss(model: ModelBase, data: TextDataset, skip_layers: int=1) -> torch.FloatTensor:
+def _compute_prune_loss_base(model: ModelBase, data: TextDataset, skip_layers:int=1, loss='kldiv'):
     '''
-    Given a number skip_layers of layer to skip, for each layer compute the average distillation loss
-    between:
+    Given a number skip_layers of layer to skip, for each layer compute the 
+    average loss value between:
     1) The original model
     2) A model where layers between between layer_idx and layer_idx + skip_layers are removed   
+    Loss is either defined as KL divergence if loss='kldiv', otherwise it is distillation loss
     '''
     # TODO: This requires model.n_layers forward passes = model.n_layers ** 2 layer forward passes
     # It can be done faster (in model.n_layers ** 2 / 2 layer forward passes) by not recomputing 
@@ -91,27 +91,45 @@ def compute_distil_loss(model: ModelBase, data: TextDataset, skip_layers: int=1)
     train_data = TokenizedDataset(data.train_data, model, batch_size=1)
     orig_layers = model.get_decoder_layers()
 
-    def get_logits(tokens):
+    def get_logits(input_ids):
         return model.model(
-            tokens.input_ids.cuda(), 
+            input_ids.cuda(), 
             use_cache=False, 
             past_key_values=None
         ).logits.squeeze(dim=0)
 
     losses = torch.zeros((model.n_layers, len(train_data)))
     for data_idx, tokens in enumerate(tqdm(train_data)): 
-        teacher_logits = get_logits(tokens) 
+        labels = tokens.input_ids[:, 1:].squeeze(dim=0)
+        input_ids = tokens.input_ids[:, :-1]
+
+        teacher_logits = get_logits(input_ids) 
         # We can remove any layer such that layer_idx+skip_layers <= model.n_layers
         for layer_idx in range(model.n_layers - skip_layers + 1):
             new_layers = orig_layers[:layer_idx] + orig_layers[layer_idx + skip_layers:]
             model.set_decoder_layers(new_layers)
-            student_logits = get_logits(tokens)
-            loss = distillation_loss(student_logits, teacher_logits) 
+            student_logits = get_logits(input_ids)
+            loss = None
+            if loss == 'kldiv':
+                loss = kldiv_loss(student_logits, teacher_logits) 
+            elif loss == 'distillation':
+                loss = distillation_loss(student_logits, teacher_logits, labels)
+            else:
+                assert False
             losses[layer_idx, data_idx] = loss
         
         model.set_decoder_layers(orig_layers)
             
     return losses.mean(dim=1) 
+
+
+@torch.no_grad()
+def compute_kldiv_loss(model: ModelBase, data: TextDataset, skip_layers: int=1) -> torch.FloatTensor:
+    return _compute_prune_loss_base(model, data, skip_layers, loss='kldiv')
+
+@torch.no_grad()
+def compute_distil_loss(model: ModelBase, data: TextDataset, skip_layers: int=1) -> torch.FloatTensor:
+    return _compute_prune_loss_base(model, data, skip_layers, 'distillation')
 
 DistMetric = Callable[[ModelBase, TextDataset, int], torch.FloatTensor]
 def simple_prune(model: ModelBase, data: TextDataset, 

@@ -41,7 +41,9 @@ def execute_layercut(model: ModelBase, prune_kwargs):
     metric = None 
     if metric_name == 'angles':
         metric = layer_cut.compute_angular_distance 
-    elif metric_name == 'distil':
+    elif metric_name == 'kldiv':
+        metric = layer_cut.compute_kldiv_loss
+    elif metric_name == 'distillation':
         metric = layer_cut.compute_distil_loss
     else:
         assert False 
