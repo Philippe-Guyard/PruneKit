@@ -6,6 +6,8 @@ from .opt import OptModel
 from .gated import Qwen2Model, GatedModel
 from .base import ModelBase, ModelType
 
+from lm_eval.models.huggingface import HFLM as LMEvalHFBase
+
 MODEL_TYPE_TO_CLS = {
     ModelType.LLAMA: GatedModel,
     ModelType.GEMMA: GatedModel,
@@ -30,3 +32,10 @@ def load_from_path(model_path: str) -> ModelBase:
     model_type = infer_model_type(model_basename)
     model_cls = MODEL_TYPE_TO_CLS[model_type]
     return model_cls(model_path, model_type)
+
+def load_lmeval_obj(model_path: str, batch_size):
+    # TODO: Assisted models
+    return LMEvalHFBase(
+        pretrained=model_path,
+        batch_size=batch_size
+    )

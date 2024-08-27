@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 
 from data import get_wikitext
-from models import load_from_path
+from models import load_from_path, load_lmeval_obj
 
 from tqdm import tqdm
 from transformers import HfArgumentParser
@@ -37,8 +37,7 @@ def get_metric_values(results, task):
 def format_number(mean, stderr):
     return f"{mean:.2f}±{stderr:.2f}"
 
-def evaluate_checkpoint(model_path: str, task: str, batch_size=1): 
-    model = load_from_path(model_path)
+def evaluate_checkpoint(lm_eval_obj, task: str, batch_size=1): 
     task_name = task
     num_fewshot = 0
     if '@' in task:
@@ -46,7 +45,7 @@ def evaluate_checkpoint(model_path: str, task: str, batch_size=1):
         num_fewshot = int(num_fewshot)
 
     results = evaluator.simple_evaluate(
-        model=model.as_lmeval_obj(batch_size=batch_size),
+        model=lm_eval_obj,
         tasks=[task_name],
         num_fewshot=num_fewshot,
         batch_size=batch_size,
@@ -55,16 +54,19 @@ def evaluate_checkpoint(model_path: str, task: str, batch_size=1):
     return results
 
 def eval_and_format(model_path: str, tasks: List[str], batch_size=1):
-    all_results = {task: [] for task in tasks}
-    all_results.update({f'{task}_mean': [] for task in tasks})
-    all_results.update({f'{task}_stderr': [] for task in tasks})
+    task_names = [task.split('@')[0] for task in tasks]
+    all_results = {task: [] for task in task_names}
+    all_results.update({f'{task}_mean': [] for task in task_names})
+    all_results.update({f'{task}_stderr': [] for task in task_names})
     all_results['model_path'] = [model_path]
+    lm_eval_obj = load_lmeval_obj(model_path, batch_size)
     for task in tasks:
-        results = evaluate_checkpoint(model_path, task)
-        mean, stderr = get_metric_values(results, task)
-        all_results[f'{task}_mean'].append(mean)
-        all_results[f'{task}_stderr'].append(stderr)
-        all_results[task].append(format_number(mean, stderr))
+        results = evaluate_checkpoint(lm_eval_obj, task)
+        task_name = task.split('@')[0]
+        mean, stderr = get_metric_values(results, task_name)
+        all_results[f'{task_name}_mean'].append(mean)
+        all_results[f'{task_name}_stderr'].append(stderr)
+        all_results[task_name].append(format_number(mean, stderr))
     
     df = pd.DataFrame(all_results)
     return df 

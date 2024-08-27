@@ -65,7 +65,7 @@ def compute_angular_distance(model: ModelBase, data: TextDataset, skip_layers: i
     distances = torch.cat(distances, dim=1)
     return distances.mean(dim=1)
         
-def _compute_prune_loss_base(model: ModelBase, data: TextDataset, skip_layers:int=1, loss='kldiv'):
+def _compute_prune_loss_base(model: ModelBase, data: TextDataset, skip_layers:int=1, loss_metric='kldiv'):
     '''
     Given a number skip_layers of layer to skip, for each layer compute the 
     average loss value between:
@@ -100,8 +100,8 @@ def _compute_prune_loss_base(model: ModelBase, data: TextDataset, skip_layers:in
 
     losses = torch.zeros((model.n_layers, len(train_data)))
     for data_idx, tokens in enumerate(tqdm(train_data)): 
-        labels = tokens.input_ids[:, 1:].squeeze(dim=0)
-        input_ids = tokens.input_ids[:, :-1]
+        labels = tokens.input_ids[:, 1:].squeeze(dim=0).cuda()
+        input_ids = tokens.input_ids[:, :-1].cuda()
 
         teacher_logits = get_logits(input_ids) 
         # We can remove any layer such that layer_idx+skip_layers <= model.n_layers
@@ -110,12 +110,13 @@ def _compute_prune_loss_base(model: ModelBase, data: TextDataset, skip_layers:in
             model.set_decoder_layers(new_layers)
             student_logits = get_logits(input_ids)
             loss = None
-            if loss == 'kldiv':
+            if loss_metric == 'kldiv':
                 loss = kldiv_loss(student_logits, teacher_logits) 
-            elif loss == 'distillation':
+            elif loss_metric == 'distillation':
                 loss = distillation_loss(student_logits, teacher_logits, labels)
             else:
-                assert False
+                assert False, f'Unknown loss metric: {loss_metric}'
+
             losses[layer_idx, data_idx] = loss
         
         model.set_decoder_layers(orig_layers)
@@ -125,11 +126,11 @@ def _compute_prune_loss_base(model: ModelBase, data: TextDataset, skip_layers:in
 
 @torch.no_grad()
 def compute_kldiv_loss(model: ModelBase, data: TextDataset, skip_layers: int=1) -> torch.FloatTensor:
-    return _compute_prune_loss_base(model, data, skip_layers, loss='kldiv')
+    return _compute_prune_loss_base(model, data, skip_layers, loss_metric='kldiv')
 
 @torch.no_grad()
 def compute_distil_loss(model: ModelBase, data: TextDataset, skip_layers: int=1) -> torch.FloatTensor:
-    return _compute_prune_loss_base(model, data, skip_layers, 'distillation')
+    return _compute_prune_loss_base(model, data, skip_layers, loss_metric='distillation')
 
 DistMetric = Callable[[ModelBase, TextDataset, int], torch.FloatTensor]
 def simple_prune(model: ModelBase, data: TextDataset, 

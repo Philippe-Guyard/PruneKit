@@ -13,11 +13,13 @@ class TextDataset:
 class TokenizedDataset:
     DEFAULT_MAX_LEN = 4096
 
-    def __init__(self, data: Dataset, model: ModelBase, batch_size: int = 1, max_length=None):
+    def __init__(self, data: Dataset, model: ModelBase, batch_size: int = 1, max_length=None, padding=False):
         self.data = data
         self.model = model
         self.batch_size = batch_size
         self.max_length = max_length or TokenizedDataset.DEFAULT_MAX_LEN
+        self.max_length = min(self.max_length, self.model.model.config.max_position_embeddings)
+        self.padding = padding
 
         self._done = True
         self._data_iter = None 
@@ -46,10 +48,9 @@ class TokenizedDataset:
         if len(texts) == 0:
             raise StopIteration
 
-        max_length = min(self.max_length, self.model.model.config.max_position_embeddings)
         tokens = self.model.tokenizer(
-            texts, return_tensors='pt',
-            truncation=True, padding='longest', max_length=max_length
+            texts, return_tensors='pt', truncation=True, 
+            padding=self.padding, max_length=self.max_length
         )
         return tokens 
 

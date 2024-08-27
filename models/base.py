@@ -53,14 +53,6 @@ class ModelBase:
         # Add the pad token?
         assert False, 'Not implemented'
     
-    def as_lmeval_obj(self, batch_size):
-        # TODO: Assisted model etc
-        return LMEvalHFBase(
-            pretrained=self.model_path,
-            batch_size=batch_size
-        )
-        
-
     @property
     def tokenizer(self) -> PreTrainedTokenizer:
         return self._tokenizer
