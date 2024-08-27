@@ -7,6 +7,7 @@ from .utils import get_linear_children
 
 import torch
 import torch.nn as nn
+from torch.sparse import to_sparse_semi_structured
 
 class WrappedGPT:
     """
@@ -168,7 +169,17 @@ def prune_wanda(model: ModelBase, data: TextDataset, use_variant: bool, sparsity
                     indices = sort_res[1][:,:int(W_metric.shape[1]*sparsity_ratio)]
                     W_mask.scatter_(1, indices, True)
 
-            prunnable_modules[name].weight.data[W_mask] = 0  ## set weights to zero 
+            linear = prunnable_modules[name]
+            # Old wanda code
+            # linear.weight.data[W_mask] = 0  ## set weights to zero 
+            linear.weight.data = linear.weight.data.masked_fill(W_mask, 0) 
+            # if prune_n != 0 and prune_m != 0:
+            #     try:
+            #         linear.weight = nn.Parameter(to_sparse_semi_structured(linear.weight))
+            #     except KeyboardInterrupt:
+            #         raise
+            #     except Exception as e:
+            #         print(f'Could not convert linear weight to sparse semi-structured format due to {e}')
 
         # Actually recompute outs...
         for j in range(n_samples):

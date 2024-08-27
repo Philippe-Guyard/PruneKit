@@ -7,7 +7,7 @@ from data.wikitext import get_wikitext
 
 from libprune import prune_wanda, check_sparsity
 from libprune import layer_cut
-from models import load_from_path, ModelBase
+from models import load_from_path, ModelBase, PruneMethod
 
 from transformers import HfArgumentParser
 
@@ -90,5 +90,6 @@ elif config.prune_method == 'layer_cut':
 else:
     assert False
 
-model.model.save_pretrained(config.model_out)
-model.tokenizer.save_pretrained(config.model_out)
+model.prune_method = PruneMethod(config.prune_method)
+model.prune_kwargs = prune_kwargs
+model.dump(Path(config.model_out), with_tokenizer=True)
